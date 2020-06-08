@@ -1,0 +1,293 @@
+---
+title: "Supplementary Materials"
+output:
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+bibliography: bibliography.bib
+csl: nature.csl
+---
+
+```{r global_options, echo = FALSE, include = FALSE}
+# Loading packages
+library(captioner)
+library(car)
+library(data.table)
+library(ggplot2)
+library(knitr)
+library(lme4)
+library(MASS)
+library(parallel)
+library(party)
+
+capfig <- captioner("Figure")
+caplst <- captioner("Listing")
+captbl <- captioner("Table")
+
+capfig(name = "fig:ctree", 
+       caption = "The conditional inference tree shows one significant effect: <span style='font-variant:small-caps;'>Condition</span>.", display = FALSE)
+
+
+caplst(name = "lst:data_transformation", 
+       caption = "Renaming data and transforming numeric predictors in preparation for regression modeling.", display = FALSE)
+caplst(name = "lst:formula", 
+       caption = "Regression formula that contains the significant effects reported in the original paper alongside lower-order terms. The numbers in the comments (starting with #) connect the parts to the list of significant effects summarized above.", 
+       display = FALSE)
+caplst(name = "lst:glmer_m", 
+       caption = "Parameters of the initial regression model.", 
+       display = FALSE)
+caplst(name = "lst:output_m", 
+       caption = "The summary of the regression model with lower order terms leaves all effects non-significant. The only significant term is the intercept, which indicates that people are in general more likely to share than not.", 
+       display = FALSE)
+caplst(name = "lst:stepwise_selection1", 
+       caption = "In the first iteration, the lowest AIC value is associated with dropping the interaction <span style='font-variant:small-caps;'>SEX_OF_PARTICIPANT:SEX_OF_REQUESTER:CONDITION</span>.", 
+       display = FALSE)
+caplst(name = "lst:stepwise_selection2", 
+       caption = "In the second iteration, the lowest AIC value is associated with dropping the interaction <span style='font-variant:small-caps;'>SEX_OF_REQUESTER:CONDITION</span>.", 
+       display = FALSE)
+caplst(name = "lst:stepwise_selection3", 
+       caption = "In the third iteration, the lowest AIC value is associated with dropping the interaction <span style='font-variant:small-caps;'>SEX_OF_PARTICIPANT:CONDITION</span>.", 
+       display = FALSE)
+caplst(name = "lst:stepwise_selection4", 
+       caption = "In the fourth iteration, the lowest AIC value is associated with leaving the model as is.", 
+       display = FALSE)
+caplst(name = "lst:output_m4", 
+       caption = "The summary of the final model `m4` contains only one significant effect: Condition.", 
+       display = FALSE)
+caplst(name = "lst:cluster_setup", 
+       caption = "Setting up a cluster for efficient computation.", 
+       display = FALSE)
+caplst(name = "lst:sim_function", 
+       caption = "Function that simulates a dataset and a model selection procedure similar to the original study.", 
+       display = FALSE)
+caplst(name = "lst:function_call", 
+       caption = "Calling the simulation 10,000 times on the cluster. Note that results vary slighlty depending on the random seed.", 
+       display = FALSE)
+caplst(name = "lst:sim_results", 
+       caption = "Counting the number of cases in which the interaction between <span style='font-variant:small-caps;'>Sex of Participant</span> and <span style='font-variant:small-caps;'>Sex of Requester</span> was kept in the model.", 
+       display = FALSE)
+
+options(width = 999)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, comment = "")
+load("Supplement2.RData")
+```
+
+In this document, we present our additional analyses. All computations were done using the statistical programming language R [@r_current]; regression models were built using the lme4 package [@lme4]; the conditional inference tree was built with the party package [@party].
+
+## Attempt to replicate significant effects fails
+
+The original paper [@massen] reports the following statistically significant findings:
+
+1. An effect of <span style="font-variant:small-caps;">Sex of Participant</span> indicating that males are more likely to share. On p.&nbsp;2, the authors state, "we find that males are more likely to share their science than females ($\beta=0.88$, $SE=0.5$, $F_{1, 384}=8.16$, $P=0.005$; Fig. 1)".
+
+2. An effect of the three-way interaction between <span style="font-variant:small-caps;">Sex of Participant</span>, <span style="font-variant:small-caps;">Sex of Requester</span>, and <span style="font-variant:small-caps;">Condition</span> (paper request vs. data request), which---in the authors' interpretation---"shows that the difference between males and females becomes particularly evident when those males got a request from a male requester." (p.&nbsp;2)
+
+3. An effect of the two-way interaction between <span style="font-variant:small-caps;">Sex of Participant</span> and <span style="font-variant:small-caps;">H-Index</span>, which is described as follows: "the interaction effect between the sex of the participants and their h-index ($F_{2, 384}=3.27$, $P=0.049$), shows that for males the likelihood of responding positively to a request for a paper or data decreases with increasing h-index." (p.&nbsp;2)
+
+Before we built a regression model, we applied two transformations, shown in `r caplst("lst:data_transformation", display = "cite")`: (1) we renamed the columns and some of the factor levels to increase the readability of the model summaries that follow, and (2) we log-transformed and centered the numerical predictors <span style="font-variant:small-caps;">H-Index</span> and <span style="font-variant:small-caps;">H-Index Difference</span> to avoid violating model assumptions.
+
+```{r}
+# Reading data
+data <- fread("../data/RawDataMassenEtAl2017.csv")
+
+# Simplifying variable names
+names(data) <- c("PARTICIPANT", "SEX_OF_PARTICIPANT", "HINDEX", 
+                 "SEX_OF_REQUESTER", "STATUS_REQUESTER", "RESPONSE", 
+                 "CONDITION", "HINDEX_DIFF")
+
+# Factorizing categorical variables
+data[, ":=" (PARTICIPANT        = factor(PARTICIPANT),
+             SEX_OF_PARTICIPANT = factor(SEX_OF_PARTICIPANT),
+             SEX_OF_REQUESTER   = factor(SEX_OF_REQUESTER),
+             STATUS_REQUESTER   = factor(STATUS_REQUESTER),
+             RESPONSE           = factor(RESPONSE),
+             CONDITION          = factor(CONDITION))]
+
+# Using meaningful names for levels of categorical variables
+levels(data$STATUS_REQUESTER) <- c("student", "postdoc")
+levels(data$RESPONSE)         <- c("no", "yes")
+levels(data$CONDITION)        <- c("paper", "data")
+
+# Log-transforming numerical predictors
+data[, ":=" (sHINDEX      = log(HINDEX + 1),
+             sHINDEX_DIFF = log(data$HINDEX_DIFF + 9))]
+
+# Centering numerical predictors
+data[, ":=" (sHINDEX      = sHINDEX - mean(sHINDEX),
+             sHINDEX_DIFF = sHINDEX_DIFF - mean(sHINDEX_DIFF))]
+```
+*`r caplst("lst:data_transformation")`*
+
+After setting up the data, the significant effects reported in the original paper were translated into a regression formula (`r caplst("lst:formula", display = "cite")`). Note that we did not---unlike the authors---exclude lower-order terms.
+
+```{r}
+formula <- RESPONSE ~ 
+    # 1: Sex of Participant
+    SEX_OF_PARTICIPANT +
+    
+    # 2: Interaction between Sex of Participant, Sex of Requester, and 
+    # Condition
+    SEX_OF_PARTICIPANT:SEX_OF_REQUESTER:CONDITION +
+    # Lower-order terms
+    SEX_OF_PARTICIPANT:SEX_OF_REQUESTER + 
+    SEX_OF_PARTICIPANT:CONDITION +
+    SEX_OF_REQUESTER:CONDITION +    
+    SEX_OF_REQUESTER +
+    CONDITION +
+    
+    # 3: Two-way interaction between Sex of Participant and H-Index
+    SEX_OF_PARTICIPANT:sHINDEX +
+    # Lower-order term
+    sHINDEX +
+    
+    # By-participant random intercepts
+    (1|PARTICIPANT)
+```
+*`r caplst("lst:formula")`*
+
+The formula in `r caplst("lst:formula", display = "cite")` was then used to build a mixed-effects logistic regression model. To achieve convergence, we used the `bobyqa` optimizer and increased the number of iterations (`r caplst("lst:glmer_m", display = "cite")`). 
+
+```{r}
+m <- glmer(formula,
+           data = data,
+           family = binomial(link = "logit"),
+           control = glmerControl(
+               optimizer = 'bobyqa',
+               optCtrl = list(maxfun = 1e6)
+           )
+     )
+```
+*`r caplst("lst:glmer_m")`*
+
+As can be seen in the model output below (`r caplst("lst:output_m", display = "cite")`), none of the effects described by the authors turn out to be statistically significant. If we then proceed in the fashion outlined by the authors (i.e., backwards model selection) and reduce the model based on AIC scores (using `drop1`, see Listings `r caplst("lst:stepwise_selection1", display = "num")`--`r caplst("lst:stepwise_selection4", display = "num")`), we arrive at model `m4` (`r caplst("lst:output_m4", display = "cite")`)
+
+```{r}
+summary(m, correlation = FALSE)
+```
+*`r caplst("lst:output_m")`*
+
+```{r}
+drop1(m)
+```
+*`r caplst("lst:stepwise_selection1")`*
+
+```{r}
+m2 <- update(m, .~. - SEX_OF_PARTICIPANT:SEX_OF_REQUESTER:CONDITION)
+drop1(m2)
+```
+*`r caplst("lst:stepwise_selection2")`*
+
+```{r}
+m3 <- update(m2, .~. - SEX_OF_REQUESTER:CONDITION)
+drop1(m3)
+```
+*`r caplst("lst:stepwise_selection3")`*
+
+```{r}
+m4 <- update(m3, .~. - SEX_OF_PARTICIPANT:CONDITION)
+drop1(m4)
+```
+*`r caplst("lst:stepwise_selection4")`*
+
+```{r}
+summary(m4, correlation = FALSE)
+```
+*`r caplst("lst:output_m4")`*
+
+The only term that is statistically significant in model `m4` (`r caplst("lst:output_m4", display = "cite")`) is <span style="font-variant:small-caps;">Condition</span>. The interaction between <span style="font-variant:small-caps;">Sex of Participant</span> and <span style="font-variant:small-caps;">Sex of Requester</span> fails to meet the customary $p<0.05$ criterion.
+
+The same results appear if we use non-parametric conditional inference tree modeling (`r capfig("fig:ctree", display = "cite")`).
+
+```{r}
+ct <- ctree(formula = RESPONSE ~ 
+                CONDITION +
+                SEX_OF_REQUESTER +
+                SEX_OF_PARTICIPANT +
+                STATUS_REQUESTER +
+                sHINDEX + 
+                HINDEX_DIFF,
+            data = data)
+plot(ct)
+```
+*`r capfig("fig:ctree")`*
+
+## The true false positive rate in the original paper is close to 30&#8239;%
+
+Our simulation replicates the setup of the original study and performs the same backward modeling procedure; it assumes that the response rate is entirely random. In what follows we show that under these circumstances, the crucial interaction between <span style="font-variant:small-caps;">Sex of Participant</span> and <span style="font-variant:small-caps;">Sex of Requester</span> in retained in 30&#8239;% of all cases.
+
+Before we start the simulation, we set up a cluster for efficient computation (`r caplst("lst:cluster_setup", display = "cite")`). We used the same model formula as in the regression model above but removed the by-participant random intercepts because we do not have any repeated measures. 
+
+```{r}
+n <- 394 # number of observations in original dataset
+formula <- update.formula(formula, .~. - (1|PARTICIPANT))
+
+# Setting up cluster
+cluster <- makeCluster(detectCores() - 1, outfile = "log.txt")
+clusterEvalQ(cluster, {
+    library(data.table)
+    library(doParallel)
+    library(MASS)
+})
+clusterExport(cluster, c("data", "n", "formula"), 
+              envir = environment())
+```
+*`r caplst("lst:cluster_setup")`*
+
+Next, we set up a function that simulates the original study (`r caplst("lst:sim_function", display = "cite")`). Categorical predictors (<span style="font-variant:small-caps;">Sex of Participant</span>, <span style="font-variant:small-caps;">Sex of Requester</span>, etc.) are sampled randomly, and the numerical predictor <span style="font-variant:small-caps;">H-Index</span> is sampled from the distribution in the original dataset. The function then performs AIC-based backwards model selection and returns the coefficients of the resulting model.
+
+```{r}
+simulate_study <- function(x) {
+    random_data <- data.table(
+        SEX_OF_PARTICIPANT = factor(sample(c("f", "m"), n, replace = TRUE)),
+        sHINDEX            = sample(data$sHINDEX),
+        SEX_OF_REQUESTER   = factor(sample(c("f", "m"), n, replace = TRUE)),
+        STATUS_REQUESTER   = factor(sample(c("postdoc", "student"), n, 
+                                           replace = TRUE)),
+        RESPONSE           = factor(sample(c("no", "yes"), n, 
+                                           replace = TRUE)),
+        CONDITION          = factor(sample(c("data", "paper"), n, 
+                                           replace = TRUE))
+    )
+    
+    m <- stepAIC(glm(formula, 
+                     family = "binomial", 
+                     data = random_data),
+                 direction = "backward",
+                 trace = FALSE)
+    
+    summary(m)$coefficients
+}
+```
+*`r caplst("lst:sim_function")`*
+
+This function is now called 10,000 times, and its results are recorded (`r caplst("lst:function_call", display = "cite")`).
+
+```{r, eval=FALSE}
+# Simulating procedure 10,000 times
+set.seed(12345)
+model_coefficients <- parLapply(cl = cluster, 1:10000, simulate_study)
+```
+*`r caplst("lst:function_call")`*
+
+From these results, all models that contain an interaction between <span style="font-variant:small-caps;">Sex of Participant</span> and <span style="font-variant:small-caps;">Sex of Requester</span> are extracted and compared to the number of iterations (`r caplst("lst:sim_results", display = "cite")`). As can be seen, 2,961 out of 10,000 models (i.e., 29.61&#8239;%) contain the interaction.
+
+```{r}
+# Extracting models where interaction of Sex of Participant and Sex of Requester
+# shows up as significant
+fp_models <- lapply(model_coefficients, function(x) {
+    if ("SEX_OF_PARTICIPANTm:SEX_OF_REQUESTERm" %in% rownames(x)) {
+        return(x)    
+    } else {
+        return(NA)
+    }
+})
+fp_models <- fp_models[!is.na(fp_models)]
+
+# How many models include the false-positive interaction between sex of the
+# participant and sex of the requester?
+cat(round(100 * length(fp_models) / length(model_coefficients), 3), "%")
+```
+*`r caplst("lst:sim_results")`*
+
+
+## References
