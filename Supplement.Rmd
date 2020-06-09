@@ -1,9 +1,9 @@
 ---
 title: "Supplementary Materials"
 output:
-  word_document: default
-  html_notebook: default
   pdf_document: default
+  html_notebook: default
+  word_document: default
 bibliography: bibliography.bib
 csl: nature.csl
 ---
@@ -69,7 +69,6 @@ caplst(name = "lst:sim_results",
 
 options(width = 999)
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, comment = "")
-load("Supplement2.RData")
 ```
 
 In this document, we present our additional analyses. All computations were done using the statistical programming language R [@r_current]; regression models were built using the lme4 package [@lme4]; the conditional inference tree was built with the party package [@party].
@@ -88,7 +87,7 @@ Before we built a regression model, we applied two transformations, shown in `r 
 
 ```{r}
 # Reading data
-data <- fread("../data/RawDataMassenEtAl2017.csv")
+data <- fread("../../data/RawDataMassenEtAl2017.csv")
 
 # Simplifying variable names
 names(data) <- c("PARTICIPANT", "SEX_OF_PARTICIPANT", "HINDEX", 
@@ -227,6 +226,7 @@ clusterEvalQ(cluster, {
     library(data.table)
     library(doParallel)
     library(MASS)
+    set.seed(123)
 })
 clusterExport(cluster, c("data", "n", "formula"), 
               envir = environment())
@@ -264,12 +264,12 @@ This function is now called 10,000 times, and its results are recorded (`r capls
 
 ```{r, eval=FALSE}
 # Simulating procedure 10,000 times
-set.seed(12345)
 model_coefficients <- parLapply(cl = cluster, 1:10000, simulate_study)
 ```
 *`r caplst("lst:function_call")`*
 
-From these results, all models that contain an interaction between <span style="font-variant:small-caps;">Sex of Participant</span> and <span style="font-variant:small-caps;">Sex of Requester</span> are extracted and compared to the number of iterations (`r caplst("lst:sim_results", display = "cite")`). As can be seen, 2,961 out of 10,000 models (i.e., 29.61&#8239;%) contain the interaction.
+From these results, all models that contain an interaction between <span style="font-variant:small-caps;">Sex of Participant</span> and <span style="font-variant:small-caps;">Sex of Requester</span> are extracted and compared to the number of iterations (`r caplst("lst:sim_results", display = "cite")`). As can be seen, 2,961 out of 10,000 models (i.e., 29.98&#8239;%) contain the interaction. (Exact value might vary slightly across iterations.)
+
 
 ```{r}
 # Extracting models where interaction of Sex of Participant and Sex of Requester
@@ -288,6 +288,5 @@ fp_models <- fp_models[!is.na(fp_models)]
 cat(round(100 * length(fp_models) / length(model_coefficients), 3), "%")
 ```
 *`r caplst("lst:sim_results")`*
-
 
 ## References
