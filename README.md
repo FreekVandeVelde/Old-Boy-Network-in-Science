@@ -12,4 +12,4 @@ Our repository does not include the original dataset, which belongs to Jorg Mass
 
 Our re-analysis refers to the article [Sharing of science is most likely among male scientists](https://www.nature.com/articles/s41598-017-13491-0) by Jorg J. M. Massen, Lisa Bauer, Benjamin Spurny, Thomas Bugnyar, and Mariska E. Kret.
 
-In the study, Massen et al. interpret their data as indicative of an 'Old Boy network' in academia. In our re-analysis, we come to different conclusions but we would like to thank Jorg Massen and colleagues for sharing their data with us.
+In the study, Massen et al. interpret their data as indicative of an 'Old Boy network' in academia. In our re-analysis, we come to different conclusions but we would like to thank Jorg Massen and colleagues for sharing their data and thus making this re-analysis possible.
