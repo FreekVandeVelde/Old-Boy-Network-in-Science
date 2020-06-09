@@ -3,7 +3,7 @@
 *By Freek Van de Velde and Benedikt Heller*
 
 This repository contains the supplementary materials of our re-analysis of a paper by Jorg Massen and colleagues (see below). It consists of 
-- a PDF file that contains our analysis and the R code that was used to run it;
+- an HTML file that contains our analysis and the R code that was used to run it;
 - an R Markdown file that was used to build the PDF file.
 
 Our repository does not include the original dataset, which belongs to Jorg Massen and colleagues. Please contact them if you want to replicate our analysis.
